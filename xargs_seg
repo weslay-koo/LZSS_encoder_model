@@ -1,0 +1,59 @@
+.TH XARGS 1L \" -*- nroff -*-
+.SH NAME
+xargs \- build and execute command lines from standard input
+.SH SYNOPSIS
+.B xargs
+[\-0prtx] [\-e[eof-str]] [\-i[replace-str]] [\-l[max-lines]]
+[\-n max-args] [\-s max-chars] [\-P max-procs] [\-\-null] [\-\-eof[=eof-str]]
+[\-\-replace[=replace-str]] [\-\-max-lines[=max-lines]] [\-\-interactive]
+[\-\-max-chars=max-chars] [\-\-verbose] [\-\-exit] [\-\-max-procs=max-procs]
+[\-\-max-args=max-args] [\-\-no-run-if-empty] [\-\-version] [\-\-help]
+[command [initial-arguments]]
+.SH DESCRIPTION
+This manual page
+documents the GNU version of
+.BR xargs .
+.B xargs
+reads arguments from the standard input, delimited by blanks (which can be
+protected with double or single quotes or a backslash) or newlines,
+and executes the
+.I command
+(default is /bin/echo) one or more times with any
+.I initial-arguments
+followed by arguments read from standard input.  Blank lines on the
+standard input are ignored.
+.P
+.B xargs
+exits with the following status:
+.nf
+0 if it succeeds
+123 if any invocation of the command exited with status 1-125
+124 if the command exited with status 255
+125 if the command is killed by a signal
+126 if the command cannot be run
+127 if the command is not found
+1 if some other error occurred.
+.fi
+.SS OPTIONS
+.TP
+.I "\-\-null, \-0"
+Input filenames are terminated by a null character instead of by
+whitespace, and the quotes and backslash are not special (every
+character is taken literally).  Disables the end of file string, which
+is treated like any other argument.  Useful when arguments might
+contain white space, quote marks, or backslashes.  The GNU find
+\-print0 option produces input suitable for this mode.
+.TP
+.I "\-\-eof[=eof-str], \-e[eof-str]"
+Set the end of file string to \fIeof-str\fR.  If the end of file
+string occurs as a line of input, the rest of the input is ignored.
+If \fIeof-str\fR is omitted, there is no end of file string.  If this
+option is not given, the end of file string defaults to "_".
+.TP
+.I "\-\-help"
+Print a summary of the options to
+.B xargs
+and exit.
+.TP
+.I "\-\-replace[=replace-str], \-i[replace-str]"
+Replace occurences of
