@@ -25,12 +25,12 @@ unsigned int ReadFileVec(char *fp, Tm OutBuf[N])
         while(!fp_strmi.eof())
         {
 			fp_strmi >> val;
-			OutBuf[in_size] = Tm(val);
-			in_size++;
+			OutBuf[in_size++] = Tm(val);
 			if (in_size>=N)
 				return -1;
         }
     }
+    in_size--;
     fp_strmi.close();
     cout << setw(60) << setfill('-') << '-' << '\n';
     cout << "Read file successful! Length = " << in_size << "\n";

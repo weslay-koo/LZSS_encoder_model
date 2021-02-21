@@ -13,6 +13,7 @@ LENGTH_BITWIDTH     = 4                             # /* typically 4..5 */
 MIN_MATCH_LEN       = 1                             # /* If match length <= MIN_MATCH_LEN then output one character */
 SLIDE_WINDOW_SIZE   = (1 << OFFSET_BITWIDTH)        # /* buffer size */
 MAX_MATCH_LEN       = ((1 << LENGTH_BITWIDTH) + 1)  # /* lookahead buffer size */
+MAX_ADDR_VALUE      = -1
 
 bit_buffer = 0
 bit_mask   = 128
@@ -77,7 +78,7 @@ def UpdateHash( windowMask,
                 slide_window,
                 pos):
     link_table[pos&windowMask] = hash_table[current_byte]
-    hash_table[current_byte] = pos
+    hash_table[current_byte]   = pos
     slide_window[(pos-1)&windowMask] = current_byte
     # print ("****hash_table[%02X]=%x, slide[%x]=0x%02X" % (current_byte,pos,pos-1,current_byte))
 
@@ -96,22 +97,27 @@ def FindMatch(  windowMask,
     #     print ("\n")
     pos2    = hash_table[current_byte]
     pos2_d1 = 0
-    pos2_done = 0
     match_cnt = 0
     # print ("################ current_byte=0x%02X, pos=%x, pos2=%x" % (current_byte,pos,pos2))
     if (pos2!=0 and pos2!=pos):
         match_cnt += 1
         pos2_list[0] = pos2
-        for i in range(1,len(pos2_list)):
+        for i in range(1,SLIDE_WINDOW_SIZE):
             pos2_d1 = pos2
             pos2    = link_table[pos2 & windowMask]
-            if (pos2_d1<=pos2): # 防止hash链混叠
-                pos2_done = 1
-            if (pos-pos2<SLIDE_WINDOW_SIZE and pos2!=0 and pos2_done!=1):
-                pos2_list[i] = pos2
-                match_cnt   += 1
+            if (pos2_d1==MAX_ADDR_VALUE):
+                break
+            elif (pos2_d1<=pos2 and pos2!=MAX_ADDR_VALUE):
+                break
             else:
-                pos2_list[i] = 0
+                if (pos2==MAX_ADDR_VALUE):
+                    pos2_list[match_cnt] = pos2
+                    match_cnt   += 1
+                elif (pos-pos2<SLIDE_WINDOW_SIZE and pos2!=0):
+                    pos2_list[match_cnt] = pos2
+                    match_cnt   += 1
+                else:
+                    break
     # print ("pos_num = %d" % match_cnt)
     return match_cnt
 
@@ -120,34 +126,42 @@ def ExtendMatch(windowMask,
                 slide_window,
                 current_byte,
                 length,
+                match_cnt,
                 pos):
     match_num = 0
     match_pos = 0
     pos2      = 0
+    pos2_pop  = 0
     # if current_byte == 0x20:
     #     print (pos2_list[0:100])
-    for i in range(0,len(pos2_list)):
-        if (pos2_list[i]!=0):
-            if (pos2_list[i]==-1):
-                if (current_byte==0x20 and (pos+length)<SLIDE_WINDOW_SIZE):
-                    pos2 = pos2_list[i]-length
-                    # print ("(((current_byte==0x20, pos2=%x" % (pos2))
+    for i in range(0,SLIDE_WINDOW_SIZE):
+        if (i>=match_cnt):
+            break
+        else:
+            pos2_pop = pos2_list[i]
+            if (pos2_pop!=0):
+                if (pos2_pop==MAX_ADDR_VALUE):
+                    if (current_byte==0x20 and (pos+length)<SLIDE_WINDOW_SIZE):
+                        pos2 = pos2_pop-length
+                        # print ("(((current_byte==0x20, pos2=%x" % (pos2))
+                    else:
+                        pos2 = pos2_pop+1
                 else:
-                    pos2 = pos2_list[i]+1
-            else:
-                pos2 = pos2_list[i]
-            
-            if (pos2_list[i]==-1 and current_byte==0x20 and (pos+length)<SLIDE_WINDOW_SIZE):
-                print ("&"*80)
-                match_num += 1
-                match_pos = pos2
-            elif (slide_window[(pos2+length)&windowMask]!=current_byte):
-                pos2_list[i] = 0
-            else:
-                # print ("^"*80)
-                match_num += 1
-                if (match_pos<pos2):
-                    match_pos = pos2
+                    pos2 = pos2_pop
+                
+                if (pos2_pop==MAX_ADDR_VALUE and current_byte==0x20 and (pos+length)<SLIDE_WINDOW_SIZE):
+                    # print ("&"*80)
+                    pos2_list[match_num] = pos2
+                    match_num           += 1
+                    match_pos            = pos2
+                elif (slide_window[(pos2+length)&windowMask]==current_byte):
+                    # print ("^"*80)
+                    pos2_list[match_num] = pos2
+                    match_num           += 1
+                    if (match_pos<pos2):
+                        match_pos = pos2
+                else:
+                    continue
     # print ("----slide_window[%x]==0x%02X current=0x%02X,match_pos[%d]=%x" % (pos2+length,
     #                                                     slide_window[(pos2+length)&windowMask],
     #                                                     current_byte,
@@ -190,7 +204,7 @@ def LZSS_encoder(in_data,in_size):
                         link_table,
                         symbol_d1,
                         slide_window,
-                        -1)
+                        MAX_ADDR_VALUE)
             UpdateHash( windowMask,
                         hash_table,
                         link_table,
@@ -198,14 +212,14 @@ def LZSS_encoder(in_data,in_size):
                         slide_window,
                         tail_addr)
         elif (head_addr+2==tail_addr and tail_addr>=in_size):
-            print ("#"*80)
+            # print ("#"*80)
             # print ("head = %x, tail = %x" % (head_addr,tail_addr))
             output1(symbol)
             head_addr += 2
         else: # 尝试匹配
             length = MIN_MATCH_LEN
             if (head_addr+1>=tail_addr):
-                print ("*"*80)
+                # print ("*"*80)
                 # print ("head = %x, tail = %x" % (head_addr,tail_addr))
                 symbol    = in_data.pop(0)
                 symbol_d1 = symbol
@@ -225,6 +239,7 @@ def LZSS_encoder(in_data,in_size):
             if (match_ok!=0):
                 # print ("FindMatch: pos=%x, symbol_d1=0x%02X, symbol=0x%02X(%x|%x)" % (tail_addr,symbol_d1,symbol,head_addr,tail_addr))
                 # print (pos2_list[0:20])
+                match_num = match_ok
                 for i in range(1,max_match_len): # 扩展匹配
                     if (in_data!=[]):
                         symbol_d1  = symbol
@@ -235,6 +250,7 @@ def LZSS_encoder(in_data,in_size):
                                                         slide_window,
                                                         symbol,
                                                         length-1,
+                                                        match_num,
                                                         head_addr)
                     # print ("----ExtendMatch: 0x%02X, match_num=%d, match_pos=%x" % (symbol,match_num,match_pos))
                     if (match_num==0):
@@ -273,6 +289,9 @@ def LZSS_encoder(in_data,in_size):
     return out_data,len(out_data)
 
 if __name__=="__main__":
+    # SRC_PATH = "../test_corpus/calgary/"
+    # DST_PATH = "../test_out/"
+    # file_list = os.listdir(SRC_PATH)
     SRC_PATH  = "./"
     DST_PATH  = "./"
     file_list = ["xargs.1"]

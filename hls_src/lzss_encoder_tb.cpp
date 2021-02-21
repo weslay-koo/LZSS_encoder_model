@@ -21,6 +21,7 @@ int main()
 
     int ErrCnt   = 0;
     char *fp_in  = (char*)"xargs.1";
+    //char *fp_in  = (char*)"tt";
     char *fp_out = (char*)"../../../src/data_out";
 
     // Read input file to AXIS
@@ -42,29 +43,32 @@ int main()
     /////////////////// DUT  Stimulus End   //////////////////////////
 
     // Write AXIS to output file
+    cerr<<"out_size = "<<out_size<<"\n";
     int j = 0;
     while(!out_stream.empty())
     {
-    	out_st = in_stream.read();
-		out_data[j++] = out_st.data;
+    	out_st = out_stream.read();
     	if(out_st.last==1)
+    	{
+    		if(out_st.keep==1)
+    			out_data[j++] = out_st.data;
     		break;
+    	}
+    	else
+    	{
+    		out_data[j++] = out_st.data;
+    	}
     }
 
-    WriteFileVec<MAX_FILE_LEN,U8_t,char>(fp_out, in_size, out_data);
+    WriteFileVec<MAX_FILE_LEN,U8_t,char>(fp_out, out_size, out_data);
     free(in_data);
     free(out_data);
-    return 0;
 
-    /*
-    out_size = LZSS_encoder(in_data,in_size,out_data);
-
-    WriteFileVec<AXIS_OUT,unsigned char>(fp_out, out_data);
 
     ///////////////////////////////////////
     ////        Score Board            ////
     ///////////////////////////////////////
-    ErrCnt = system("diff -w R_out.txt Golden_R.txt");
+    ErrCnt = system("diff -w ../../../src/data_out xargs.1.hwlzss");
     cerr << " done." << endl << endl;
     if (ErrCnt == 0)
     {
@@ -77,5 +81,4 @@ int main()
         cerr << endl << endl;
         return -1;
     }
-    */
 }
